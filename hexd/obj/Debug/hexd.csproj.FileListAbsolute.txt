@@ -1,7 +1,0 @@
-D:\ssynx\Devel\hexd\hexd\bin\Debug\hexd.exe.config
-D:\ssynx\Devel\hexd\hexd\bin\Debug\hexd.exe
-D:\ssynx\Devel\hexd\hexd\bin\Debug\hexd.pdb
-D:\ssynx\Devel\hexd\hexd\obj\Debug\hexd.csprojAssemblyReference.cache
-D:\ssynx\Devel\hexd\hexd\obj\Debug\hexd.csproj.CoreCompileInputs.cache
-D:\ssynx\Devel\hexd\hexd\obj\Debug\hexd.exe
-D:\ssynx\Devel\hexd\hexd\obj\Debug\hexd.pdb
