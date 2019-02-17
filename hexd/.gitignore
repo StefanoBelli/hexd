@@ -1,5 +1,6 @@
-.vs
+.vs/
 obj/
 bin/
 *.exe
 *.cache
+*.csproj.user
