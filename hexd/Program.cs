@@ -1,93 +1,166 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Windows.Forms;
 
 namespace hexd
 {
     class Program
     {
-
-        private static int GetPrintableBytesNumber(bool alsoAddress, int maximumBytes)
+        class Arguments
         {
+            private Arguments() { }
+
+            public static Arguments ParseCmdline(string[] cargs)
+            {
+                Arguments parsedArguments = new Arguments();
+
+                for(int i = 0; i < cargs.Length; ++i)
+                {
+                    if (cargs[i] == "-ToSystemClipboard")
+                        parsedArguments.ToSystemClipboard = true;
+                    else if (cargs[i] == "-NoBloatedOutput")
+                        parsedArguments.NoBloatedOutput = true;
+                    else if (cargs[i] == "-NoOffset")
+                        parsedArguments.NoOffset = true;
+                    else if (cargs[i] == "-NoSpaces")
+                        parsedArguments.NoSpaces = true;
+                    else if (cargs[i] == "-Lowercase")
+                        parsedArguments.Lowercase = true;
+                    else if (cargs[i] == "-MaxBytes")
+                    {
+                        try
+                        {
+                            parsedArguments.MaxBytes = Convert.ToInt32(cargs[++i]);
+                        }
+                        catch(IndexOutOfRangeException)
+                        {
+                            Console.WriteLine("-MaxBytes requires a value");
+                            Environment.Exit(1);
+                        }
+                        catch(FormatException)
+                        {
+                            Console.WriteLine("{0} is not a number", cargs[i]);
+                            Environment.Exit(1);
+                        }
+                    }
+                    else
+                        parsedArguments.Filenames.Add(cargs[i]);
+                }
+
+                return parsedArguments;
+            }
+
+            public bool ToSystemClipboard = false;
+            public bool NoBloatedOutput = false;
+            public bool NoOffset = false;
+            public bool NoSpaces = false;
+            public bool Lowercase = false;
+            public int MaxBytes = 16;
+            public List<string> Filenames = new List<string>();
+            
+        }
+
+        private static Arguments programArgs;
+        
+        private static int GetPrintableBytesNumber()
+        {
+            if (programArgs.ToSystemClipboard)
+                return programArgs.MaxBytes;
+
             int oneLineBytes = Console.WindowWidth;
-            if (alsoAddress)
+            if (!programArgs.NoOffset)
                 oneLineBytes -= 10;
 
             oneLineBytes /= 3;
-            if (maximumBytes > oneLineBytes)
+            if (programArgs.MaxBytes > oneLineBytes)
                 return --oneLineBytes;
 
-            return maximumBytes;
+            return programArgs.MaxBytes;
         }
 
-        private static void PrintHexDump(string file, bool alsoPrintAddress, int userShowMaxBytes)
+        private static string GetHexDump(string file)
         {
-            try
+            int b;
+            int counter = GetPrintableBytesNumber();
+            int loc = 0;
+            string formatter;
+
+            if (programArgs.Lowercase)
+                formatter = "{0:x2}";
+            else
+                formatter = "{0:X2}";
+
+            if (!programArgs.NoSpaces)
+                formatter += " ";
+
+            using (StringWriter writer = new StringWriter())
             {
-                using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
+                try
                 {
-                    int b;
-                    int counter = GetPrintableBytesNumber(alsoPrintAddress, userShowMaxBytes);
-                    int loc = 0;
-
-                    while ((b = stream.ReadByte()) != -1)
+                    using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
-                        if (counter - GetPrintableBytesNumber(alsoPrintAddress, userShowMaxBytes) == 0)
+
+                        while ((b = stream.ReadByte()) != -1)
                         {
-                            Console.WriteLine();
+                            if (counter - GetPrintableBytesNumber() == 0)
+                            {
+                                writer.WriteLine();
 
-                            if(alsoPrintAddress)
-                                Console.Write("{0:X8}: ", loc);
+                                if (!programArgs.NoOffset)
+                                    writer.Write("{0:X8}: ", loc);
 
-                            counter = 0;
+                                counter = 0;
+                            }
+
+                            writer.Write(formatter, b);
+
+                            counter++;
+                            loc++;
                         }
-
-                        Console.Write("{0:X2} ", b);
-
-                        counter++;
-                        loc++;
                     }
                 }
-            }
-            catch (IOException)
-            {
-                Console.Write("ignoring {0}: does not exist", file);
-            }
+                catch (IOException)
+                {
+                    if (!programArgs.NoBloatedOutput)
+                        writer.WriteLine("\nignoring {0}: does not exist", file);
+                    return writer.ToString();
+                }
 
-            Console.WriteLine();
+                writer.WriteLine();
+                return writer.ToString();
+            }
         }
 
+        private static string GetFullHexDump()
+        {
+            using (StringWriter fullDump = new StringWriter())
+            {
+                foreach (var filename in programArgs.Filenames)
+                {
+                    if (!programArgs.NoBloatedOutput)
+                        fullDump.WriteLine("\n{0}", filename);
+
+                    fullDump.Write(GetHexDump(filename));
+                }
+
+                return fullDump.ToString();
+            }
+        }
+
+        [STAThread]
         static void Main(string[] args)
         {
-            if(args.Length == 0)
-            {
-                Console.WriteLine("missing argument: filename [filenames...] [-n] [-b int]");
-                return;
-            }
+            programArgs = Arguments.ParseCmdline(args);
 
-            bool showAddress = true;
-            int maxBytes = 32;
-            List<string> filenames = new List<string>();
+            string dump = GetFullHexDump();
+            if (dump.Length > 0 && dump[dump.Length - 1] == '\n')
+                dump = dump.Remove(dump.Length - 1, 1);
 
-            for(int i = 0; i < args.Length; ++i)
-            {
-                if (args[i] == "-n")
-                    showAddress = false;
-                else if (args[i] == "-b")
-                {
-                    ++i;
-                    maxBytes = Convert.ToInt32(args[i]);
-                }
-                else
-                    filenames.Add(args[i]);
-            }
-
-            foreach(var filename in filenames)
-            {
-                Console.WriteLine();
-                Console.WriteLine(filename);
-                PrintHexDump(filename, showAddress, maxBytes);
-            }
+            if (programArgs.ToSystemClipboard)
+                Clipboard.SetText(dump);
+            else
+                Console.WriteLine(dump);
         }
     }
 }
